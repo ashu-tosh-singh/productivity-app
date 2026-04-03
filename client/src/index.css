@@ -1,0 +1,46 @@
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+/* Light mode (default) */
+:root {
+  --bg-primary: #f8f9fa;
+  --bg-secondary: #ffffff;
+  --text-primary: #1a1a2e;
+  --text-secondary: #6b7280;
+  --border: #e5e7eb;
+  --accent: #6366f1;      /* Indigo — our brand color */
+  --accent-light: #eef2ff;
+  --danger: #ef4444;
+  --success: #22c55e;
+  --font: 'Inter', system-ui, sans-serif;
+}
+
+/* Dark mode */
+[data-theme='dark'] {
+  --bg-primary: #0f0f13;
+  --bg-secondary: #1a1a24;
+  --text-primary: #f1f5f9;
+  --text-secondary: #94a3b8;
+  --border: #2d2d3d;
+  --accent: #818cf8;
+  --accent-light: #1e1b4b;
+}
+
+body {
+  font-family: var(--font);
+  background: var(--bg-primary);
+  color: var(--text-primary);
+  line-height: 1.6;
+  transition: background 0.2s, color 0.2s;
+}
+
+input, button, textarea, select {
+  font-family: inherit;
+}
+
+a {
+  color: inherit;
+}
