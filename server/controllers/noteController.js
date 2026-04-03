@@ -1,39 +1,29 @@
 const Note = require('../models/Note');
+const { emitToUser } = require('../socket/socketHandler');
 
-// ── GET /api/notes ──────────────────────────────────────────────
-// Get all notes for the logged-in user
 const getNotes = async (req, res) => {
   const notes = await Note.find({ user: req.user._id })
-    .sort({ isPinned: -1, updatedAt: -1 }); 
-    // Pinned notes first, then most recently updated
-
+    .sort({ isPinned: -1, updatedAt: -1 });
   res.json(notes);
 };
 
-// ── POST /api/notes ─────────────────────────────────────────────
-// Create a new note
 const createNote = async (req, res) => {
   const { title, content, tags, color, isPinned } = req.body;
 
   const note = await Note.create({
-    user: req.user._id,   // Always tie to the logged-in user
-    title,
-    content,
-    tags,
-    color,
-    isPinned,
+    user: req.user._id,
+    title, content, tags, color, isPinned,
   });
+
+  // Broadcast to all tabs of this user
+  const io = req.app.get('io');
+  emitToUser(io, req.user._id, 'note:created', note);
 
   res.status(201).json(note);
 };
 
-// ── PUT /api/notes/:id ──────────────────────────────────────────
-// Update a note — only if it belongs to the logged-in user
 const updateNote = async (req, res) => {
-  const note = await Note.findOne({
-    _id: req.params.id,
-    user: req.user._id,   // Double-check ownership — NEVER skip this
-  });
+  const note = await Note.findOne({ _id: req.params.id, user: req.user._id });
 
   if (!note) {
     res.status(404);
@@ -41,19 +31,20 @@ const updateNote = async (req, res) => {
   }
 
   const { title, content, tags, color, isPinned } = req.body;
+  if (title !== undefined)     note.title = title;
+  if (content !== undefined)   note.content = content;
+  if (tags !== undefined)      note.tags = tags;
+  if (color !== undefined)     note.color = color;
+  if (isPinned !== undefined)  note.isPinned = isPinned;
 
-  // Only update fields that were actually sent
-  if (title !== undefined) note.title = title;
-  if (content !== undefined) note.content = content;
-  if (tags !== undefined) note.tags = tags;
-  if (color !== undefined) note.color = color;
-  if (isPinned !== undefined) note.isPinned = isPinned;
+  const updated = await note.save();
 
-  const updated = await note.save(); // save() triggers timestamps update
+  const io = req.app.get('io');
+  emitToUser(io, req.user._id, 'note:updated', updated);
+
   res.json(updated);
 };
 
-// ── DELETE /api/notes/:id ───────────────────────────────────────
 const deleteNote = async (req, res) => {
   const note = await Note.findOneAndDelete({
     _id: req.params.id,
@@ -64,6 +55,10 @@ const deleteNote = async (req, res) => {
     res.status(404);
     throw new Error('Note not found');
   }
+
+  const io = req.app.get('io');
+  // Only send the ID — the client uses it to remove from local state
+  emitToUser(io, req.user._id, 'note:deleted', { id: req.params.id });
 
   res.json({ message: 'Note deleted', id: req.params.id });
 };

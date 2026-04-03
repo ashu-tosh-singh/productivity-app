@@ -1,15 +1,12 @@
 const Todo = require('../models/Todo');
+const { emitToUser } = require('../socket/socketHandler');
 
-// ── GET /api/todos ──────────────────────────────────────────────
 const getTodos = async (req, res) => {
   const todos = await Todo.find({ user: req.user._id })
     .sort({ isCompleted: 1, createdAt: -1 });
-    // Incomplete tasks first, newest first within each group
-
   res.json(todos);
 };
 
-// ── POST /api/todos ─────────────────────────────────────────────
 const createTodo = async (req, res) => {
   const { title, priority, dueDate, linkedEvent } = req.body;
 
@@ -20,21 +17,17 @@ const createTodo = async (req, res) => {
 
   const todo = await Todo.create({
     user: req.user._id,
-    title,
-    priority,
-    dueDate,
-    linkedEvent,
+    title, priority, dueDate, linkedEvent,
   });
+
+  const io = req.app.get('io');
+  emitToUser(io, req.user._id, 'todo:created', todo);
 
   res.status(201).json(todo);
 };
 
-// ── PUT /api/todos/:id ──────────────────────────────────────────
 const updateTodo = async (req, res) => {
-  const todo = await Todo.findOne({
-    _id: req.params.id,
-    user: req.user._id,
-  });
+  const todo = await Todo.findOne({ _id: req.params.id, user: req.user._id });
 
   if (!todo) {
     res.status(404);
@@ -42,18 +35,20 @@ const updateTodo = async (req, res) => {
   }
 
   const { title, isCompleted, priority, dueDate, linkedEvent } = req.body;
-
-  if (title !== undefined) todo.title = title;
-  if (isCompleted !== undefined) todo.isCompleted = isCompleted;
-  if (priority !== undefined) todo.priority = priority;
-  if (dueDate !== undefined) todo.dueDate = dueDate;
-  if (linkedEvent !== undefined) todo.linkedEvent = linkedEvent;
+  if (title !== undefined)        todo.title = title;
+  if (isCompleted !== undefined)  todo.isCompleted = isCompleted;
+  if (priority !== undefined)     todo.priority = priority;
+  if (dueDate !== undefined)      todo.dueDate = dueDate;
+  if (linkedEvent !== undefined)  todo.linkedEvent = linkedEvent;
 
   const updated = await todo.save();
+
+  const io = req.app.get('io');
+  emitToUser(io, req.user._id, 'todo:updated', updated);
+
   res.json(updated);
 };
 
-// ── DELETE /api/todos/:id ───────────────────────────────────────
 const deleteTodo = async (req, res) => {
   const todo = await Todo.findOneAndDelete({
     _id: req.params.id,
@@ -64,6 +59,9 @@ const deleteTodo = async (req, res) => {
     res.status(404);
     throw new Error('Todo not found');
   }
+
+  const io = req.app.get('io');
+  emitToUser(io, req.user._id, 'todo:deleted', { id: req.params.id });
 
   res.json({ message: 'Todo deleted', id: req.params.id });
 };
